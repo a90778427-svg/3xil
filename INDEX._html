@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마탑의 용사와 50층의 공주 (Demon Tower Hero Quest)</title>
+    <!-- Tailwind CSS for UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D graphics engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts for Retro Arcade Style -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #0d0e15;
+            color: #ffffff;
+        }
+        .pixel-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+        /* Canvas crisp pixelated rendering */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        /* Retro UI Frame Styling */
+        .pixel-box {
+            background: rgba(20, 18, 30, 0.88);
+            border: 4px solid #4a3d6b;
+            box-shadow: 0 0 0 2px #000, inset 0 0 10px rgba(0, 0, 0, 0.8);
+            border-radius: 6px;
+        }
+        .pixel-btn {
+            background: linear-gradient(180deg, #5b4699 0%, #362663 100%);
+            border: 2px solid #8e73d3;
+            box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), 0 4px 0 #1b1233;
+            transition: all 0.1s ease;
+        }
+        .pixel-btn:hover {
+            background: linear-gradient(180deg, #6e56b8 0%, #44307a 100%);
+            transform: translateY(-2px);
+        }
+        .pixel-btn:active {
+            transform: translateY(2px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 1px 0 #1b1233;
+        }
+        /* Health bar animation */
+        .hp-bar-fill {
+            transition: width 0.2s ease-out, background-color 0.3s;
+        }
+        /* Custom scrollbars inside overlays */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #120e1f;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a3d6b;
+            border-radius: 4px;
+        }
+
+        /* Dragon Cutscene Animation */
+        @keyframes dragonFly {
+            0% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-10px) scale(1.05); }
+            100% { transform: translateY(0px) scale(1); }
+        }
+        .dragon-anim {
+            animation: dragonFly 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="select-none overflow-hidden bg-black text-white">
+
+    <div id="game-container" class="relative w-full h-full">
+        <!-- Main 3D Canvas -->
+        <canvas id="three-canvas"></canvas>
+
+        <!-- Notification Toast Toast Message -->
+        <div id="toast-notice" class="fixed top-20 left-1/2 -translate-x-1/2 pixel-box px-4 py-2 bg-purple-950/90 text-yellow-300 border-yellow-500 font-bold text-xs sm:text-sm z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+            🧪 마물이 물약을 떨어뜨렸습니다! (HP +30)
+        </div>
+
+        <!-- Prologue / Cutscene Screen -->
+        <div id="prologue-modal" class="fixed inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center z-50 p-4">
+            <div class="pixel-box max-w-xl w-full p-6 sm:p-8 flex flex-col items-center text-center space-y-5 border-purple-500">
+                <div class="pixel-font text-xs text-purple-400 tracking-widest uppercase mb-1">[ PROLOGUE ]</div>
+                <h1 class="pixel-font text-xl sm:text-2xl text-yellow-400 leading-snug">공주님의 위기와 용사의 결의</h1>
+
+                <!-- Visual Story Card Scene -->
+                <div class="w-full bg-slate-900/90 border-2 border-purple-700 rounded-lg p-6 flex justify-around items-center my-2 shadow-inner">
+                    <div class="flex flex-col items-center gap-1">
+                        <span class="text-4xl">⚔️🛡️</span>
+                        <span class="text-xs font-bold text-blue-400">용사</span>
+                    </div>
+                    <div class="text-2xl font-bold text-red-500 animate-pulse">⚡😱⚡</div>
+                    <div class="flex flex-col items-center gap-1">
+                        <span class="text-5xl dragon-anim">🐉🔥</span>
+                        <span class="text-xs font-bold text-red-400">드래곤</span>
+                    </div>
+                    <div class="text-xl text-yellow-400">➡️</div>
+                    <div class="flex flex-col items-center gap-1">
+                        <span class="text-4xl">👸🏰</span>
+                        <span class="text-xs font-bold text-pink-300">공주</span>
+                    </div>
+                </div>
+
+                <div class="text-gray-200 text-sm sm:text-base leading-relaxed space-y-2">
+                    <p class="text-yellow-200 font-bold">
+                        "평화롭던 왕국에 거대한 드래곤이 나타나 공주님을 50층 마탑의 꼭대기로 납치해 갔습니다!"
+                    </p>
+                    <p class="text-gray-300 text-xs sm:text-sm">
+                        소식을 듣고 충격에 빠진 용사는 전설의 검을 손에 쥐고 공주님을 구출하기 위해 위험천만한 마탑으로 향합니다.
+                    </p>
+                </div>
+
+                <div class="w-full pt-3 border-t border-purple-800/60 flex flex-col gap-2">
+                    <button id="start-game-btn" onclick="startGameFromPrologue()" class="pixel-btn w-full py-3.5 text-yellow-300 font-bold text-base sm:text-lg tracking-wider">
+                        ⚔️ 마탑으로 돌진하기 (게임 시작)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top HUD Bar -->
+        <div class="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-10">
+            <!-- Left Stats Container -->
+            <div class="pixel-box p-3 sm:p-4 flex flex-col gap-2 min-w-[220px] sm:min-w-[280px] pointer-events-auto">
+                <div class="flex items-center justify-between">
+                    <span class="pixel-font text-xs text-yellow-400">HERO LV.1</span>
+                    <span id="floor-indicator" class="font-bold text-sm text-purple-300">마탑 1층 / 50층</span>
+                </div>
+                
+                <!-- Health Bar -->
+                <div class="w-full bg-gray-900 h-5 border-2 border-gray-700 rounded relative overflow-hidden">
+                    <div id="hp-bar" class="hp-bar-fill h-full bg-red-600 w-full"></div>
+                    <span id="hp-text" class="absolute inset-0 flex items-center justify-center text-xs font-black tracking-wider drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
+                        HP 100 / 100
+                    </span>
+                </div>
+
+                <!-- Weapon & Gold Info -->
+                <div class="flex justify-between items-center text-xs pt-1 border-t border-gray-700/60">
+                    <div class="flex items-center gap-1 text-amber-300">
+                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V18h-2v-1.07A4 4 0 0 1 8 13h2a2 2 0 0 0 2 2 2 2 0 0 0 2-2 2 2 0 0 0-2-2 4 4 0 0 1-4-4 4 4 0 0 1 3-3.93V4h2v1.07A4 4 0 0 1 16 11h-2a2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2 4 4 0 0 1 3 3.93z"/></svg>
+                        <span id="coin-count" class="font-bold text-sm">0</span> <span class="text-gray-400">Gold</span>
+                    </div>
+                    <div class="text-cyan-300 flex items-center gap-1">
+                        <span class="text-gray-400">공격력:</span>
+                        <span id="atk-stat" class="font-bold text-sm">15</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Controls Guide Overlay -->
+            <div class="pixel-box p-3 text-xs text-gray-300 hidden md:block max-w-[240px] pointer-events-auto">
+                <div class="font-bold text-yellow-300 mb-1 border-b border-gray-700 pb-1">조작 방법</div>
+                <ul class="space-y-1">
+                    <li><b class="text-white">W, A, S, D / 화살표</b> : 이동</li>
+                    <li><b class="text-white">마우스 우클릭 드래그</b> : 화면 회전</li>
+                    <li><b class="text-white">마우스 좌클릭 / 스페이스</b> : 칼 휘두르기</li>
+                    <li><b class="text-white">E 키</b> : 상점/계단 상호작용</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Center Action Prompt -->
+        <div id="action-prompt" class="absolute bottom-20 left-1/2 -translate-x-1/2 pixel-box px-6 py-3 text-center hidden pointer-events-none z-20 animate-bounce">
+            <span id="prompt-text" class="text-yellow-300 font-bold text-sm sm:text-base">[E] 키를 눌러 대화하기</span>
+        </div>
+
+        <!-- Virtual D-Pad for Mobile Touch Controls -->
+        <div class="absolute bottom-6 left-6 z-20 flex flex-col items-center gap-1 sm:hidden opacity-80 select-none">
+            <button id="btn-up" class="pixel-btn w-12 h-12 flex items-center justify-center text-lg font-bold">▲</button>
+            <div class="flex gap-2">
+                <button id="btn-left" class="pixel-btn w-12 h-12 flex items-center justify-center text-lg font-bold">◀</button>
+                <button id="btn-down" class="pixel-btn w-12 h-12 flex items-center justify-center text-lg font-bold">▼</button>
+                <button id="btn-right" class="pixel-btn w-12 h-12 flex items-center justify-center text-lg font-bold">▶</button>
+            </div>
+        </div>
+
+        <!-- Attack Button for Touch / Quick Click -->
+        <div class="absolute bottom-6 right-6 z-20">
+            <button id="attack-btn" class="pixel-btn w-16 h-16 rounded-full flex items-center justify-center font-bold text-yellow-300 text-lg shadow-2xl active:scale-95">
+                ⚔️
+            </button>
+        </div>
+
+        <!-- NPC Shop Modal Dialog -->
+        <div id="shop-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+            <div class="pixel-box w-11/12 max-w-lg p-6 relative flex flex-col gap-4">
+                <div class="flex justify-between items-center border-b border-purple-800 pb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-purple-900 border-2 border-purple-400 rounded flex items-center justify-center text-xl">🧙‍♂️</div>
+                        <div>
+                            <h3 class="font-bold text-lg text-yellow-400">마탑의 유랑 상인</h3>
+                            <p class="text-xs text-gray-300">"험난한 마탑 층을 오르느라 고생이 많구려!"</p>
+                        </div>
+                    </div>
+                    <button id="close-shop-btn" class="text-gray-400 hover:text-white text-xl font-bold px-2">✕</button>
+                </div>
+
+                <!-- Shop Items List -->
+                <div class="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    <!-- Item 1: Small Health Potion -->
+                    <div class="flex items-center justify-between p-3 bg-gray-900/80 border border-gray-700 rounded hover:border-yellow-500 transition">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🧪</span>
+                            <div>
+                                <div class="font-bold text-sm text-green-400">하급 회복 물약</div>
+                                <div class="text-xs text-gray-400">체력을 +35 회복합니다.</div>
+                            </div>
+                        </div>
+                        <button onclick="buyItem('potion_small', 15, 35)" class="pixel-btn px-3 py-1.5 text-xs font-bold text-yellow-300">
+                            15 코인
+                        </button>
+                    </div>
+
+                    <!-- Item 2: Large Health Potion -->
+                    <div class="flex items-center justify-between p-3 bg-gray-900/80 border border-gray-700 rounded hover:border-yellow-500 transition">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🍷</span>
+                            <div>
+                                <div class="font-bold text-sm text-green-300">최상급 엘릭서</div>
+                                <div class="text-xs text-gray-400">체력을 +80 회복합니다.</div>
+                            </div>
+                        </div>
+                        <button onclick="buyItem('potion_large', 35, 80)" class="pixel-btn px-3 py-1.5 text-xs font-bold text-yellow-300">
+                            35 코인
+                        </button>
+                    </div>
+
+                    <!-- Item 3: Steel Sword -->
+                    <div class="flex items-center justify-between p-3 bg-gray-900/80 border border-gray-700 rounded hover:border-yellow-500 transition">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🗡️</span>
+                            <div>
+                                <div class="font-bold text-sm text-cyan-300">강철 검</div>
+                                <div class="text-xs text-gray-400">공격력을 +12 증가시킵니다.</div>
+                            </div>
+                        </div>
+                        <button id="buy-sword1-btn" onclick="buyWeapon('steel_sword', 50, 12)" class="pixel-btn px-3 py-1.5 text-xs font-bold text-yellow-300">
+                            50 코인
+                        </button>
+                    </div>
+
+                    <!-- Item 4: Hero Sword -->
+                    <div class="flex items-center justify-between p-3 bg-gray-900/80 border border-gray-700 rounded hover:border-yellow-500 transition">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">⚔️</span>
+                            <div>
+                                <div class="font-bold text-sm text-purple-300">전설의 성검</div>
+                                <div class="text-xs text-gray-400">공격력을 +30 증가시킵니다.</div>
+                            </div>
+                        </div>
+                        <button id="buy-sword2-btn" onclick="buyWeapon('hero_sword', 120, 30)" class="pixel-btn px-3 py-1.5 text-xs font-bold text-yellow-300">
+                            120 코인
+                        </button>
+                    </div>
+                </div>
+
+                <div class="text-center pt-2 border-t border-purple-900/50 flex justify-between items-center text-xs">
+                    <span id="shop-status-msg" class="text-yellow-400 font-bold"></span>
+                    <button id="leave-shop-btn" class="pixel-btn px-4 py-2 text-white font-bold">상점 나가기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floor Title Screen Overlay (fades out on floor change) -->
+        <div id="floor-title-screen" class="fixed inset-0 flex flex-col items-center justify-center bg-black/90 text-white z-40 pointer-events-none transition-opacity duration-700 opacity-0">
+            <h1 id="floor-title-text" class="pixel-font text-3xl sm:text-5xl text-yellow-400 mb-4 drop-shadow-[0_4px_10px_rgba(234,179,8,0.5)]">
+                마탑 1층
+            </h1>
+            <p id="floor-sub-text" class="text-gray-300 text-sm sm:text-base">마물들의 기운이 느껴집니다...</p>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-50 hidden p-4">
+            <div class="pixel-box p-8 max-w-md w-full text-center space-y-4">
+                <h2 class="pixel-font text-3xl text-red-500 mb-2">GAME OVER</h2>
+                <p class="text-gray-300 text-sm">마물과의 전투에서 쓰러졌습니다...</p>
+                <p class="text-yellow-400 text-sm font-bold">도달한 층수: <span id="final-floor">1</span>층</p>
+                <button onclick="restartGame()" class="pixel-btn px-6 py-3 font-bold text-white text-base w-full mt-4">
+                    🔄 다시 도전하기
+                </button>
+            </div>
+        </div>
+
+        <!-- Victory Modal (Rescuing Princess on Floor 50) -->
+        <div id="victory-modal" class="fixed inset-0 bg-yellow-950/90 flex flex-col items-center justify-center z-50 hidden p-4">
+            <div class="pixel-box p-8 max-w-lg w-full text-center space-y-4 border-yellow-400">
+                <div class="text-5xl mb-2">👑👸✨</div>
+                <h2 class="pixel-font text-2xl text-yellow-400">축하합니다!</h2>
+                <p class="text-purple-200 text-sm sm:text-base leading-relaxed">
+                    50층의 모든 마물을 물리치고 갇혀있던 공주님을 무사히 구출해냈습니다! 용사님의 용맹함이 온 대륙에 울려 퍼질 것입니다.
+                </p>
+                <button onclick="restartGame()" class="pixel-btn px-6 py-3 font-bold text-yellow-300 text-base w-full mt-4">
+                    🏆 전설을 다시 쓰기 (새 게임)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sound FX Class (Web Audio API)
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playAttack() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playCoin() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(1318.51, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playHit() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(40, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+
+            playHeal() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+
+            playStairs() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(660, this.ctx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.4);
+            }
+        }
+
+        const sound = new SoundFX();
+
+        // Utility to generate 64x64 pixel art textures algorithmically
+        function createPixelTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            if (type === 'stone_floor') {
+                ctx.fillStyle = '#2d2938';
+                ctx.fillRect(0, 0, 64, 64);
+                // Grid lines & stone tiles (64x64 resolution)
+                ctx.fillStyle = '#1c1924';
+                for (let i = 0; i < 64; i += 16) {
+                    ctx.fillRect(i, 0, 2, 64);
+                    ctx.fillRect(0, i, 64, 2);
+                }
+                // High detailed noise specs
+                ctx.fillStyle = '#3a3547';
+                for (let i = 0; i < 120; i++) {
+                    const x = Math.floor(Math.random() * 64);
+                    const y = Math.floor(Math.random() * 64);
+                    ctx.fillRect(x, y, 2, 2);
+                }
+            } else if (type === 'brick_wall') {
+                ctx.fillStyle = '#423142';
+                ctx.fillRect(0, 0, 64, 64);
+                ctx.fillStyle = '#231826';
+                // Brick horizontal lines
+                for (let y = 0; y < 64; y += 16) {
+                    ctx.fillRect(0, y, 64, 3);
+                }
+                // Brick vertical staggered lines
+                for (let y = 0; y < 64; y += 16) {
+                    const offset = (y / 16) % 2 === 0 ? 0 : 16;
+                    for (let x = offset; x < 64; x += 32) {
+                        ctx.fillRect(x, y, 3, 16);
+                    }
+                }
+            } else if (type === 'stairs') {
+                ctx.fillStyle = '#5c4b38';
+                ctx.fillRect(0, 0, 64, 64);
+                ctx.fillStyle = '#8a7359';
+                for (let y = 0; y < 64; y += 8) {
+                    ctx.fillRect(0, y, 64, 4);
+                }
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.NearestFilter;
+            return texture;
+        }
+
+        // Core Game Constants & State Variables
+        const MAX_FLOORS = 50;
+        let gameState = {
+            floor: 1,
+            playerHp: 100,
+            maxHp: 100,
+            coins: 0,
+            attackPower: 15,
+            equippedWeapon: 'basic_sword',
+            isGameOver: false,
+            isVictorious: false,
+            inShop: false,
+            inPrologue: true
+        };
+
+        // Inputs State
+        const keys = { w: false, a: false, s: false, d: false };
+        let isRightMouseDown = false;
+        let mouseX = 0, mouseY = 0;
+        let cameraAngleX = 0;
+        let cameraAngleY = Math.PI / 6;
+
+        function showNotice(text) {
+            const toast = document.getElementById('toast-notice');
+            toast.innerText = text;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2200);
+        }
+
+        window.startGameFromPrologue = function() {
+            sound.init();
+            sound.playCoin();
+            gameState.inPrologue = false;
+            document.getElementById('prologue-modal').classList.add('hidden');
+        };
+
+        // Three.js Scene Setup
+        const container = document.getElementById('game-container');
+        const canvas = document.getElementById('three-canvas');
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0812);
+        scene.fog = new THREE.FogExp2(0x0a0812, 0.04);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // High performant retro look
+        renderer.shadowMap.enabled = true;
+
+        // Lighting Setup
+        const ambientLight = new THREE.AmbientLight(0x665588, 1.2);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffeedd, 1.0);
+        dirLight.position.set(20, 40, 20);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // Pre-create Materials
+        const floorTexture = createPixelTexture('stone_floor');
+        floorTexture.wrapS = THREE.RepeatWrapping;
+        floorTexture.wrapT = THREE.RepeatWrapping;
+        floorTexture.repeat.set(16, 16);
+
+        const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.8 });
+        const wallMat = new THREE.MeshStandardMaterial({ map: createPixelTexture('brick_wall'), roughness: 0.9 });
+        const stairsMat = new THREE.MeshStandardMaterial({ map: createPixelTexture('stairs'), roughness: 0.7 });
+
+        // Voxel Hero Character Creation
+        function createHeroMesh() {
+            const group = new THREE.Group();
+
+            // Body
+            const bodyGeo = new THREE.BoxGeometry(0.8, 1.0, 0.5);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 }); // Blue tunic
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.9;
+            group.add(body);
+
+            // Head
+            const headGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffcc99 }); // Skin tone
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.7;
+            group.add(head);
+
+            // Helmet
+            const helmetGeo = new THREE.BoxGeometry(0.68, 0.3, 0.68);
+            const helmetMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.8 });
+            const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+            helmet.position.y = 1.9;
+            group.add(helmet);
+
+            // Sword Attachment
+            const swordGroup = new THREE.Group();
+            swordGroup.name = 'swordGroup';
+
+            const bladeGeo = new THREE.BoxGeometry(0.12, 1.2, 0.05);
+            const bladeMat = new THREE.MeshStandardMaterial({ color: 0xe5e7eb, metalness: 0.9, roughness: 0.2 });
+            const blade = new THREE.Mesh(bladeGeo, bladeMat);
+            blade.position.y = 0.6;
+            swordGroup.add(blade);
+
+            const hiltGeo = new THREE.BoxGeometry(0.4, 0.1, 0.1);
+            const hiltMat = new THREE.MeshStandardMaterial({ color: 0xd97706 });
+            const hilt = new THREE.Mesh(hiltGeo, hiltMat);
+            hilt.position.y = 0.1;
+            swordGroup.add(hilt);
+
+            swordGroup.position.set(0.55, 0.9, 0.2);
+            swordGroup.rotation.x = Math.PI / 4;
+            group.add(swordGroup);
+
+            group.traverse(child => { if (child.isMesh) child.castShadow = true; });
+            return group;
+        }
+
+        const playerMesh = createHeroMesh();
+        scene.add(playerMesh);
+
+        // Generator for Monster Voxels (Small & Big)
+        function createMonsterMesh(isBig) {
+            const group = new THREE.Group();
+            const scale = isBig ? 1.6 : 0.9;
+
+            if (isBig) {
+                // Big Monster: Skeleton Golem style
+                const bodyGeo = new THREE.BoxGeometry(1.2 * scale, 1.4 * scale, 0.8 * scale);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0x991b1b }); // Deep red armor
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.y = (1.4 * scale) / 2;
+                group.add(body);
+
+                const headGeo = new THREE.BoxGeometry(0.8 * scale, 0.8 * scale, 0.8 * scale);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xf3f4f6 }); // Skull head
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.y = 1.4 * scale + 0.4 * scale;
+                group.add(head);
+
+                // Horns
+                const hornGeo = new THREE.BoxGeometry(0.2 * scale, 0.5 * scale, 0.2 * scale);
+                const hornMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
+                const hornL = new THREE.Mesh(hornGeo, hornMat);
+                hornL.position.set(-0.3 * scale, head.position.y + 0.4 * scale, 0);
+                hornL.rotation.z = -0.3;
+                const hornR = hornL.clone();
+                hornR.position.x = 0.3 * scale;
+                hornR.rotation.z = 0.3;
+                group.add(hornL, hornR);
+
+            } else {
+                // Small Monster: Slime Goblin style
+                const bodyGeo = new THREE.BoxGeometry(0.9 * scale, 0.9 * scale, 0.9 * scale);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0x16a34a }); // Green slime
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.y = (0.9 * scale) / 2;
+                group.add(body);
+
+                // Eyes
+                const eyeGeo = new THREE.BoxGeometry(0.2 * scale, 0.2 * scale, 0.1 * scale);
+                const eyeMat = new THREE.MeshStandardMaterial({ color: 0xfacc15 });
+                const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeL.position.set(-0.25 * scale, 0.6 * scale, 0.45 * scale);
+                const eyeR = eyeL.clone();
+                eyeR.position.x = 0.25 * scale;
+                group.add(eyeL, eyeR);
+            }
+
+            group.traverse(child => { if (child.isMesh) child.castShadow = true; });
+            return group;
+        }
+
+        // Generator for Merchant NPC Mesh
+        function createMerchantMesh() {
+            const group = new THREE.Group();
+
+            // Robe Body
+            const bodyGeo = new THREE.BoxGeometry(0.9, 1.2, 0.7);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x6b21a8 }); // Purple wizard robe
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.6;
+            group.add(body);
+
+            // Wizard Hat
+            const hatGeo = new THREE.ConeGeometry(0.6, 0.9, 4);
+            const hatMat = new THREE.MeshStandardMaterial({ color: 0x4c1d95 });
+            const hat = new THREE.Mesh(hatGeo, hatMat);
+            hat.position.y = 1.6;
+            group.add(hat);
+
+            // Glowing Wand
+            const wandGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.2);
+            const wandMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706 });
+            const wand = new THREE.Mesh(wandGeo, wandMat);
+            wand.position.set(0.6, 0.8, 0.2);
+            group.add(wand);
+
+            group.traverse(child => { if (child.isMesh) child.castShadow = true; });
+            return group;
+        }
+
+        // Generator for Princess Mesh (Floor 50 Goal)
+        function createPrincessMesh() {
+            const group = new THREE.Group();
+
+            // Dress
+            const dressGeo = new THREE.ConeGeometry(0.7, 1.3, 8);
+            const dressMat = new THREE.MeshStandardMaterial({ color: 0xec4899 }); // Pink dress
+            const dress = new THREE.Mesh(dressGeo, dressMat);
+            dress.position.y = 0.65;
+            group.add(dress);
+
+            // Head
+            const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffcc99 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.45;
+            group.add(head);
+
+            // Crown
+            const crownGeo = new THREE.BoxGeometry(0.4, 0.2, 0.4);
+            const crownMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9 });
+            const crown = new THREE.Mesh(crownGeo, crownMat);
+            crown.position.y = 1.75;
+            group.add(crown);
+
+            group.traverse(child => { if (child.isMesh) child.castShadow = true; });
+            return group;
+        }
+
+        // Floor Entities Tracking
+        let currentMonsters = [];
+        let merchantNpc = null;
+        let stairsMesh = null;
+        let princessMesh = null;
+        let floorLevelMesh = null;
+
+        const ROOM_SIZE = 28; // 28x28 playable arena grid
+
+        // Build 3D Floor Room
+        function loadFloor(floorNum) {
+            gameState.floor = floorNum;
+            document.getElementById('floor-indicator').innerText = `마탑 ${floorNum}층 / ${MAX_FLOORS}층`;
+
+            // Clear old entities
+            currentMonsters.forEach(m => scene.remove(m.mesh));
+            currentMonsters = [];
+            if (merchantNpc) { scene.remove(merchantNpc.mesh); merchantNpc = null; }
+            if (stairsMesh) { scene.remove(stairsMesh); stairsMesh = null; }
+            if (princessMesh) { scene.remove(princessMesh); princessMesh = null; }
+            if (floorLevelMesh) { scene.remove(floorLevelMesh); }
+
+            // Create Floor & Walls Container
+            floorLevelMesh = new THREE.Group();
+
+            // Floor Plane
+            const planeGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+            const floorTile = new THREE.Mesh(planeGeo, floorMat);
+            floorTile.rotation.x = -Math.PI / 2;
+            floorTile.receiveShadow = true;
+            floorLevelMesh.add(floorTile);
+
+            // Outer Walls
+            const wallHeight = 4;
+            const wallGeo = new THREE.BoxGeometry(ROOM_SIZE, wallHeight, 1);
+            
+            const wallNorth = new THREE.Mesh(wallGeo, wallMat);
+            wallNorth.position.set(0, wallHeight / 2, -ROOM_SIZE / 2);
+            const wallSouth = new THREE.Mesh(wallGeo, wallMat);
+            wallSouth.position.set(0, wallHeight / 2, ROOM_SIZE / 2);
+            
+            const wallSideGeo = new THREE.BoxGeometry(1, wallHeight, ROOM_SIZE);
+            const wallWest = new THREE.Mesh(wallSideGeo, wallMat);
+            wallWest.position.set(-ROOM_SIZE / 2, wallHeight / 2, 0);
+            const wallEast = new THREE.Mesh(wallSideGeo, wallMat);
+            wallEast.position.set(ROOM_SIZE / 2, wallHeight / 2, 0);
+
+            floorLevelMesh.add(wallNorth, wallSouth, wallWest, wallEast);
+            scene.add(floorLevelMesh);
+
+            // Position Player at Entrance
+            playerMesh.position.set(0, 0, 10);
+
+            // Calculate Monsters scaling factor: 3.9% increase per floor
+            const scaleFactor = Math.pow(1.039, floorNum - 1);
+
+            // Spawn Monsters (3 to 5 monsters per floor)
+            const monsterCount = Math.min(3 + Math.floor(floorNum / 10), 6);
+            for (let i = 0; i < monsterCount; i++) {
+                // Determine if monster is Big or Small
+                const isBig = Math.random() < 0.4 || (floorNum % 5 === 0);
+                const monsterMesh = createMonsterMesh(isBig);
+                
+                // Random position away from player
+                const rx = (Math.random() - 0.5) * (ROOM_SIZE - 6);
+                const rz = -2 - Math.random() * (ROOM_SIZE / 2 - 2);
+                monsterMesh.position.set(rx, 0, rz);
+                scene.add(monsterMesh);
+
+                currentMonsters.push({
+                    mesh: monsterMesh,
+                    isBig: isBig,
+                    hp: Math.round((isBig ? 55 : 22) * scaleFactor),
+                    maxHp: Math.round((isBig ? 55 : 22) * scaleFactor),
+                    atk: Math.round((isBig ? 12 : 5) * scaleFactor),
+                    rewardCoins: isBig ? 30 : 10,
+                    lastAttackTime: 0
+                });
+            }
+
+            // Spawn Merchant NPC every 3 floors (3, 6, 9, 12, ...)
+            if (floorNum % 3 === 0 && floorNum < MAX_FLOORS) {
+                const npcMesh = createMerchantMesh();
+                npcMesh.position.set(-8, 0, 6);
+                scene.add(npcMesh);
+                merchantNpc = { mesh: npcMesh };
+            }
+
+            // Spawn Exit Stairs to next floor
+            const stairsGeo = new THREE.BoxGeometry(3, 0.4, 3);
+            stairsMesh = new THREE.Mesh(stairsGeo, stairsMat);
+            stairsMesh.position.set(0, 0.2, -ROOM_SIZE / 2 + 3);
+            scene.add(stairsMesh);
+
+            // Floor 50 Special Princess Rescue Goal!
+            if (floorNum === MAX_FLOORS) {
+                princessMesh = createPrincessMesh();
+                princessMesh.position.set(0, 0, -ROOM_SIZE / 2 + 3);
+                scene.add(princessMesh);
+            }
+
+            // Show Floor Title Notification Banner
+            showFloorBanner(floorNum);
+        }
+
+        // Display Floor Title Banner Transition
+        function showFloorBanner(floorNum) {
+            const banner = document.getElementById('floor-title-screen');
+            const title = document.getElementById('floor-title-text');
+            const sub = document.getElementById('floor-sub-text');
+
+            if (floorNum === MAX_FLOORS) {
+                title.innerText = `최후의 50층 - 마왕의 정상`;
+                sub.innerText = `마침내 공주님이 갇힌 곳에 도착했습니다!`;
+            } else if (floorNum % 3 === 0) {
+                title.innerText = `마탑 ${floorNum}층 (상점 구역)`;
+                sub.innerText = `유랑 상인이 당신을 기다리고 있습니다.`;
+            } else {
+                title.innerText = `마탑 ${floorNum}층`;
+                sub.innerText = `마물들의 힘이 3.9% 강해집니다.`;
+            }
+
+            banner.classList.remove('opacity-0');
+            setTimeout(() => {
+                banner.classList.add('opacity-0');
+            }, 1800);
+        }
+
+        // Sword Attack Logic
+        let isAttacking = false;
+        let attackSwingProgress = 0;
+
+        function performAttack() {
+            if (isAttacking || gameState.isGameOver || gameState.inShop || gameState.inPrologue) return;
+            sound.init();
+            sound.playAttack();
+            
+            isAttacking = true;
+            attackSwingProgress = 0;
+
+            const swordGroup = playerMesh.getObjectByName('swordGroup');
+            
+            // Check for hits against monsters within reach
+            const attackRange = 2.8;
+            const playerPos = playerMesh.position;
+
+            currentMonsters.forEach((monster, index) => {
+                const dist = playerPos.distanceTo(monster.mesh.position);
+                if (dist <= attackRange) {
+                    // Deal damage
+                    monster.hp -= gameState.attackPower;
+                    sound.playHit();
+
+                    // Flash monster red
+                    monster.mesh.traverse(child => {
+                        if (child.isMesh) {
+                            const origColor = child.material.color.getHex();
+                            child.material.color.setHex(0xff0000);
+                            setTimeout(() => child.material.color.setHex(origColor), 150);
+                        }
+                    });
+
+                    // Monster Defeated
+                    if (monster.hp <= 0) {
+                        sound.playCoin();
+                        gameState.coins += monster.rewardCoins;
+
+                        // 1/3 Chance (33.3%) to drop a 30 HP Potion
+                        if (Math.random() < 0.3333) {
+                            const healAmount = 30;
+                            const prevHp = gameState.playerHp;
+                            gameState.playerHp = Math.min(gameState.maxHp, gameState.playerHp + healAmount);
+                            sound.playHeal();
+                            showNotice(`🧪 마물이 하급 회복 물약을 떨어뜨렸습니다! (HP +${Math.round(gameState.playerHp - prevHp)})`);
+                        }
+
+                        updateHUD();
+
+                        // Remove monster mesh
+                        scene.remove(monster.mesh);
+                        currentMonsters.splice(index, 1);
+                    }
+                }
+            });
+        }
+
+        // Key Listeners for WASD and Arrow Keys
+        window.addEventListener('keydown', (e) => {
+            sound.init();
+            const key = e.key.toLowerCase();
+            const code = e.code;
+
+            if (key === 'w' || key === 'ㅈ' || code === 'ArrowUp') keys.w = true;
+            if (key === 'a' || key === 'ㅁ' || code === 'ArrowLeft') keys.a = true;
+            if (key === 's' || key === 'ㄴ' || code === 'ArrowDown') keys.s = true;
+            if (key === 'd' || key === 'ㅇ' || code === 'ArrowRight') keys.d = true;
+
+            if (e.code === 'Space') {
+                performAttack();
+            }
+
+            if (key === 'e' || key === 'ㄷ') {
+                interactWithNearby();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            const code = e.code;
+
+            if (key === 'w' || key === 'ㅈ' || code === 'ArrowUp') keys.w = false;
+            if (key === 'a' || key === 'ㅁ' || code === 'ArrowLeft') keys.a = false;
+            if (key === 's' || key === 'ㄴ' || code === 'ArrowDown') keys.s = false;
+            if (key === 'd' || key === 'ㅇ' || code === 'ArrowRight') keys.d = false;
+        });
+
+        // Mouse Right Click Camera Orbit Control
+        window.addEventListener('mousedown', (e) => {
+            if (e.button === 2) { // Right Click
+                isRightMouseDown = true;
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            } else if (e.button === 0) { // Left Click
+                performAttack();
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 2) {
+                isRightMouseDown = false;
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isRightMouseDown) {
+                const deltaX = e.clientX - mouseX;
+                const deltaY = e.clientY - mouseY;
+
+                cameraAngleX -= deltaX * 0.005;
+                cameraAngleY = Math.max(0.1, Math.min(Math.PI / 3, cameraAngleY + deltaY * 0.005));
+
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            }
+        });
+
+        // Context Menu Prevent
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        // UI Attack Button Trigger
+        document.getElementById('attack-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            performAttack();
+        });
+
+        // Mobile Touch D-Pad Controls
+        const setupTouchBtn = (id, keyName) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            const start = (e) => { e.preventDefault(); keys[keyName] = true; };
+            const end = (e) => { e.preventDefault(); keys[keyName] = false; };
+            btn.addEventListener('touchstart', start, { passive: false });
+            btn.addEventListener('touchend', end, { passive: false });
+            btn.addEventListener('mousedown', start);
+            btn.addEventListener('mouseup', end);
+        };
+        setupTouchBtn('btn-up', 'w');
+        setupTouchBtn('btn-left', 'a');
+        setupTouchBtn('btn-down', 's');
+        setupTouchBtn('btn-right', 'd');
+
+        // Interact Key 'E' Action
+        function interactWithNearby() {
+            const pPos = playerMesh.position;
+
+            // Check Merchant interaction
+            if (merchantNpc) {
+                const distNpc = pPos.distanceTo(merchantNpc.mesh.position);
+                if (distNpc < 3.0) {
+                    openShop();
+                    return;
+                }
+            }
+
+            // Check Stairs interaction
+            if (stairsMesh) {
+                const distStairs = pPos.distanceTo(stairsMesh.position);
+                if (distStairs < 2.5) {
+                    if (gameState.floor < MAX_FLOORS) {
+                        sound.playStairs();
+                        loadFloor(gameState.floor + 1);
+                    } else {
+                        // Floor 50 Princess Victory!
+                        triggerVictory();
+                    }
+                    return;
+                }
+            }
+        }
+
+        function openShop() {
+            gameState.inShop = true;
+            document.getElementById('shop-modal').classList.remove('hidden');
+            document.getElementById('shop-status-msg').innerText = '';
+        }
+
+        function closeShop() {
+            gameState.inShop = false;
+            document.getElementById('shop-modal').classList.add('hidden');
+        }
+
+        document.getElementById('close-shop-btn').addEventListener('click', closeShop);
+        document.getElementById('leave-shop-btn').addEventListener('click', closeShop);
+
+        // Buy Potions & Items
+        window.buyItem = function(itemId, cost, healAmount) {
+            sound.init();
+            const msgEl = document.getElementById('shop-status-msg');
+            if (gameState.coins >= cost) {
+                if (gameState.playerHp >= gameState.maxHp) {
+                    msgEl.innerText = "체력이 이미 가득 차 있습니다!";
+                    msgEl.className = "text-red-400 font-bold";
+                    return;
+                }
+                gameState.coins -= cost;
+                gameState.playerHp = Math.min(gameState.maxHp, gameState.playerHp + healAmount);
+                sound.playHeal();
+                msgEl.innerText = `물약을 사용해 HP +${healAmount} 회복했습니다!`;
+                msgEl.className = "text-green-400 font-bold";
+                updateHUD();
+            } else {
+                msgEl.innerText = "코인이 부족합니다!";
+                msgEl.className = "text-red-400 font-bold";
+            }
+        };
+
+        // Buy Weapon Upgrades
+        window.buyWeapon = function(weaponId, cost, extraAtk) {
+            sound.init();
+            const msgEl = document.getElementById('shop-status-msg');
+            if (gameState.coins >= cost) {
+                gameState.coins -= cost;
+                gameState.attackPower += extraAtk;
+                sound.playHeal();
+                
+                if (weaponId === 'steel_sword') {
+                    document.getElementById('buy-sword1-btn').disabled = true;
+                    document.getElementById('buy-sword1-btn').innerText = "구매완료";
+                } else if (weaponId === 'hero_sword') {
+                    document.getElementById('buy-sword2-btn').disabled = true;
+                    document.getElementById('buy-sword2-btn').innerText = "구매완료";
+                }
+
+                msgEl.innerText = `새 무기를 장착하여 공격력이 +${extraAtk} 상승했습니다!`;
+                msgEl.className = "text-cyan-400 font-bold";
+                updateHUD();
+            } else {
+                msgEl.innerText = "코인이 부족합니다!";
+                msgEl.className = "text-red-400 font-bold";
+            }
+        };
+
+        function updateHUD() {
+            // HP Bar update
+            const hpPercent = Math.max(0, (gameState.playerHp / gameState.maxHp) * 100);
+            const hpBar = document.getElementById('hp-bar');
+            hpBar.style.width = `${hpPercent}%`;
+            document.getElementById('hp-text').innerText = `HP ${Math.round(gameState.playerHp)} / ${gameState.maxHp}`;
+            
+            // HP Color coding
+            if (hpPercent > 50) hpBar.className = "hp-bar-fill h-full bg-green-600";
+            else if (hpPercent > 25) hpBar.className = "hp-bar-fill h-full bg-yellow-500";
+            else hpBar.className = "hp-bar-fill h-full bg-red-600";
+
+            // Coins & Stats update
+            document.getElementById('coin-count').innerText = gameState.coins;
+            document.getElementById('atk-stat').innerText = gameState.attackPower;
+        }
+
+        function triggerGameOver() {
+            gameState.isGameOver = true;
+            document.getElementById('final-floor').innerText = gameState.floor;
+            document.getElementById('game-over-modal').classList.remove('hidden');
+        }
+
+        function triggerVictory() {
+            gameState.isVictorious = true;
+            document.getElementById('victory-modal').classList.remove('hidden');
+        }
+
+        window.restartGame = function() {
+            gameState = {
+                floor: 1,
+                playerHp: 100,
+                maxHp: 100,
+                coins: 0,
+                attackPower: 15,
+                equippedWeapon: 'basic_sword',
+                isGameOver: false,
+                isVictorious: false,
+                inShop: false
+            };
+            document.getElementById('game-over-modal').classList.add('hidden');
+            document.getElementById('victory-modal').classList.add('hidden');
+            updateHUD();
+            loadFloor(1);
+        };
+
+        // Main Game Loop Variables
+        const moveSpeed = 0.14;
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (gameState.isGameOver || gameState.isVictorious || gameState.inPrologue) return;
+
+            const delta = clock.getDelta();
+
+            // Handle Sword Swing Animation
+            if (isAttacking) {
+                const swordGroup = playerMesh.getObjectByName('swordGroup');
+                attackSwingProgress += delta * 12;
+                if (swordGroup) {
+                    swordGroup.rotation.z = Math.sin(attackSwingProgress) * -1.8;
+                }
+                if (attackSwingProgress >= Math.PI) {
+                    isAttacking = false;
+                    if (swordGroup) swordGroup.rotation.z = 0;
+                }
+            }
+
+            // Handle Player Movement (WASD & Arrow Keys relative to camera facing angle)
+            if (!gameState.inShop) {
+                let moveX = 0;
+                let moveZ = 0;
+
+                if (keys.w) moveZ -= 1;
+                if (keys.s) moveZ += 1;
+                if (keys.a) moveX -= 1;
+                if (keys.d) moveX += 1;
+
+                if (moveX !== 0 || moveZ !== 0) {
+                    // Normalize movement vector
+                    const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+                    moveX /= len;
+                    moveZ /= len;
+
+                    // Forward vector based on camera angle
+                    const forwardX = Math.sin(cameraAngleX);
+                    const forwardZ = Math.cos(cameraAngleX);
+                    const rightX = Math.cos(cameraAngleX);
+                    const rightZ = -Math.sin(cameraAngleX);
+
+                    const dirX = moveX * rightX - moveZ * forwardX;
+                    const dirZ = moveX * rightZ - moveZ * forwardZ;
+
+                    const newPosX = playerMesh.position.x + dirX * moveSpeed;
+                    const newPosZ = playerMesh.position.z + dirZ * moveSpeed;
+
+                    // Bounds Collision Check against room walls
+                    const bound = ROOM_SIZE / 2 - 1.2;
+                    if (Math.abs(newPosX) < bound) playerMesh.position.x = newPosX;
+                    if (Math.abs(newPosZ) < bound) playerMesh.position.z = newPosZ;
+
+                    // Rotate Player toward movement direction
+                    playerMesh.rotation.y = Math.atan2(dirX, dirZ);
+                }
+            }
+
+            // Update Monsters Movement & AI Combat
+            const now = Date.now();
+            currentMonsters.forEach(monster => {
+                const distToPlayer = monster.mesh.position.distanceTo(playerMesh.position);
+
+                // Monsters chase player when within aggro range (8.5 units)
+                if (distToPlayer < 8.5 && distToPlayer > 1.2 && !gameState.inShop) {
+                    const dir = new THREE.Vector3().subVectors(playerMesh.position, monster.mesh.position).normalize();
+                    const monsterSpeed = monster.isBig ? 0.045 : 0.065;
+                    monster.mesh.position.x += dir.x * monsterSpeed;
+                    monster.mesh.position.z += dir.z * monsterSpeed;
+                    monster.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+                }
+
+                // Monster Attack Player when close
+                if (distToPlayer <= 1.5 && !gameState.inShop) {
+                    if (now - monster.lastAttackTime > 1200) { // Attack cooldown 1.2s
+                        monster.lastAttackTime = now;
+                        gameState.playerHp = Math.max(0, gameState.playerHp - monster.atk);
+                        sound.playHit();
+                        updateHUD();
+
+                        if (gameState.playerHp <= 0) {
+                            triggerGameOver();
+                        }
+                    }
+                }
+            });
+
+            // Action Prompt HUD Detection
+            const promptEl = document.getElementById('action-prompt');
+            const promptText = document.getElementById('prompt-text');
+            let showPrompt = false;
+
+            if (merchantNpc && playerMesh.position.distanceTo(merchantNpc.mesh.position) < 3.0) {
+                showPrompt = true;
+                promptText.innerText = "[E] 키를 눌러 상인과 대화하기";
+            } else if (stairsMesh && playerMesh.position.distanceTo(stairsMesh.position) < 2.5) {
+                showPrompt = true;
+                promptText.innerText = gameState.floor < MAX_FLOORS ? "[E] 키를 눌러 다음 층으로 올라가기" : "[E] 키를 눌러 공주님 구출하기!";
+            }
+
+            if (showPrompt && !gameState.inShop) promptEl.classList.remove('hidden');
+            else promptEl.classList.add('hidden');
+
+            // Orbit Camera Follow
+            const camDistance = 14;
+            camera.position.x = playerMesh.position.x + camDistance * Math.sin(cameraAngleX) * Math.cos(cameraAngleY);
+            camera.position.y = playerMesh.position.y + camDistance * Math.sin(cameraAngleY);
+            camera.position.z = playerMesh.position.z + camDistance * Math.cos(cameraAngleX) * Math.cos(cameraAngleY);
+            camera.lookAt(playerMesh.position.x, playerMesh.position.y + 1.2, playerMesh.position.z);
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize First Floor & Start Loop on Load
+        window.onload = function() {
+            loadFloor(1);
+            updateHUD();
+            animate();
+        };
+    </script>
+</body>
+</html>
